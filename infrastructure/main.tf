@@ -3,6 +3,8 @@
 # service account
 resource "yandex_iam_service_account" "project_sa" {
   name = local.sa_name
+  folder_id = var.yc_folder_id
+  description = "A service account for qualification task"
 }
 
 # Assigning role(s) to the sa

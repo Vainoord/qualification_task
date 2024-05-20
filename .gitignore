@@ -1,6 +1,6 @@
 # hide providers and tfstate files
-infrastructure/stage*/.terraform
-infrastructure/stage*/.terraform.lock.hcl
-infrastructure/stage*/*.tfstate*
+infrastructure/.terraform
+infrastructure/.terraform.lock.hcl
+infrastructure/*.tfstate*
 # hide cloud credentials
-infrastructure/stage*/*.tfvars
+infrastructure/*.tfvars
