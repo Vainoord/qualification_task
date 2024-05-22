@@ -10,12 +10,10 @@ terraform {
     endpoints = {
       s3 = "https://storage.yandexcloud.net"
     }
-    bucket = "conf-storage-bucket"
+    bucket = "conf-bucket"
     region = "ru-central1-a"
     key    = "terraform.tfstate"
-    access_key = "YCA...U"
-    secret_key = "YCN...l"
-
+    
     skip_region_validation      = true
     skip_credentials_validation = true
     skip_requesting_account_id  = true # This option is required to describe backend for Terraform version 1.6.1 or higher.

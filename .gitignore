@@ -1,6 +1,9 @@
 # hide providers and tfstate files
-infrastructure/.terraform
-infrastructure/.terraform.lock.hcl
-infrastructure/*.tfstate*
+infrastructure/*/.terraform
+infrastructure/*/.terraform.lock.hcl
+infrastructure/*/*.tfstate*
 # hide cloud credentials
-infrastructure/*.tfvars
+infrastructure/*/*.tfvars
+
+# hide kubespray folder
+infrastructure/kubespray

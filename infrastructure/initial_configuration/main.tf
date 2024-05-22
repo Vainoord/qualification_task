@@ -10,7 +10,7 @@ resource "yandex_iam_service_account" "project_sa" {
 # Assigning role(s) to the sa
 resource "yandex_resourcemanager_folder_iam_member" "sa-editor" {
   folder_id = var.yc_folder_id
-  role      = "storage.editor"
+  role      = local.sa_role
   member    = "serviceAccount:${yandex_iam_service_account.project_sa.id}"
 }
 

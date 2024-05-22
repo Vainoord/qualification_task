@@ -30,6 +30,13 @@ access_key = "YCA...blah..."
 secret_key = "YCA...blah..."
 ```
 
+Полученные значения записываем в переменные:
+
+```bash
+export ACCESS_KEY="<key_ID>"
+export SECRET_KEY="<secret_key>"
+```
+
 Добавляем в секцию `terraform` файла `providers.tf` backend "S3" согласно [официальной документации](https://yandex.cloud/en/docs/tutorials/infrastructure-management/terraform-state-storage?utm_referrer=https%3A%2F%2Fwww.google.com%2F#set-up-backend). Параметры `access_key` и `secret_key` получаем из ранее полученного вывода terraform или командами `terraform output secret_key`, `terraform output secret_key`:
 
 ```tf
@@ -40,8 +47,6 @@ backend "s3" {
   bucket = "conf-storage-bucket"
   region = "ru-central1-a"
   key    = "terraform.tfstate"
-  access_key = "YCA..."
-  secret_key = "YCN..."
 
   skip_region_validation      = true
   skip_credentials_validation = true
@@ -50,4 +55,18 @@ backend "s3" {
 }
 ```
 
-### 
+Далее выполняем команду `terraform init -backend-config="access_key=$ACCESS_KEY" -backend-config="secret_key=$SECRET_KEY"`. На этом подготовка облачной конфигурации завершена.
+
+<details>
+<summary>Bucket screenshot</summary>
+<img src="attachments/scr1.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+</details>
+
+### Создание Kubernetes кластера
+
+
+
+###
+
