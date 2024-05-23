@@ -18,7 +18,7 @@ provider_installation {
     exclude = ["registry.terraform.io/*/*"]
   }
 ```
-Далее создаем tf файлы для конфигурации сервисного аккаунта, провайдера, static key и bucket для хранения конфигурации. Нам далее будут необходимы значения `access_key` и `secret_key`. добавим их в `output.tf`. Помещаем файлы tf в директорию [stage 1](infrastructure/stage_1). 
+Далее создаем tf файлы для конфигурации сервисного аккаунта, провайдера, static key и bucket для хранения конфигурации. Нам далее будут необходимы значения `access_key` и `secret_key`. добавим их в `output.tf`. Помещаем файлы tf в директорию [initial_configuration](infrastructure/initial_configuration). 
 Оттуда выполняем команду `terraform init`. Получаем на выходе:
 
 ```bash
