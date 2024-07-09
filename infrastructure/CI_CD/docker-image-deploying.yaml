@@ -1,0 +1,52 @@
+name: docker-image-deploying
+on:
+  push:
+    branches: "main"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set IMAGE_TAG variable
+      run: echo "IMAGE_TAG=$(date +'%Y%m%d-%H%m')" >> $GITHUB_ENV
+
+    - name: Login to Yandex Cloud Container Registry
+      id: login-cr
+      uses: yc-actions/yc-cr-login@v2
+      with:
+        yc-sa-json-credentials: ${{ secrets.REGISTRY_TOKEN }}
+
+    - name: Check variable
+      run: echo $IMAGE_TAG
+
+    - name: Build, tag, and push image to Yandex Cloud Container Registry
+
+      run: |
+        docker build -t cr.yandex/${{ secrets.REGISTRY_ID }}/app-qualification-geo:${{ env.IMAGE_TAG }} .
+        docker push cr.yandex/${{ secrets.REGISTRY_ID }}/app-qualification-geo:${{ env.IMAGE_TAG }}
+
+
+    - name: Add kubeconfig file
+      run: |
+        mkdir ${HOME}/.kube
+        echo ${{ secrets.K8S_CONFIG}} | base64 --decode > ${HOME}/.kube/config
+
+    - name: Use context
+      run: kubectl config use-context kubernetes-admin@cluster.local
+
+    - name: Deploy namespace to K8s Cluster
+      run: kubectl apply -f namespace.yaml
+
+    - name: Paste encoded registry config into secret manifest
+      run: sed -i "s/DOCKER_CONFIG/${{ secrets.REGISTRY_CONFIG_ENCODED }}/g" secret-registry.yaml
+
+    - name: Deploy secret to K8s Cluster
+      run: kubectl apply -f secret-registry.yaml
+    
+    - name: Paste registry ID into K8S app manifest
+      run: sed -i "s/REGISTRY_ID/${{ secrets.REGISTRY_ID }}/g" app-nginx.yaml
+
+    - name: Deploy the app to K8s Cluster
+      run: kubectl apply -f app-nginx.yaml

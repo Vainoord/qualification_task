@@ -79,3 +79,15 @@ variable "ssh_public_key_path" {
 variable "ssh_private_key_path" {
   type = string
 }
+
+variable "registry_name" {
+  type = string
+  default     = "yc-registry"
+  description = "The name of personal cloud registry"
+}
+
+variable "sa_name" {
+  type = string
+  default = "sa-registry-manager"
+  description = "The name of service account for access to container registry"
+}

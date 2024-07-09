@@ -2,8 +2,9 @@
 infrastructure/*/.terraform
 infrastructure/*/.terraform.lock.hcl
 infrastructure/*/*.tfstate*
-# hide cloud credentials
+# hide credentials
 infrastructure/*/*.tfvars
-
-# hide kubespray folder
+infrastructure/*/*.json
+# hide kubespray and prometheus folders
 infrastructure/kubespray
+infrastructure/kube_prometheus

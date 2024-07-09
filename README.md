@@ -64,11 +64,13 @@ backend "s3" {
      style="float: left; margin-right: 10px; margin-top: 10px;" />
 </details>
 
+---
 
 ### Создание Kubernetes кластера
 
 Перед развертыванием K8s кластера создадим `terraform` конфигурацию с 3 виртуальными машинами. Поместим `terraform` конфигурацию в папку [project_configuration](infrastructure/project_configuration). В файле [output.tf](infrastructure/project_configuration/output.tf) пропишем вывод ip адресов виртуальных машин, они пригодятся для `kubespray`.
 
+\
 Для кластера K8S воспользуемся `Kubespray` с проверенной версией v2.20, с которой ранее выполняли задания из блока kubernetes:
 
 ```bash
@@ -152,6 +154,8 @@ kube-system   nodelocaldns-t8ckt                       1/1     Running   0      
 
 </details>
 
+---
+
 ### Подготовка docker контейнера nginx 
 
 <details>
@@ -179,9 +183,11 @@ nginx        1.27.0    dde0cca083bc   3 weeks ago   188MB
 
 </details>
 
-Создадим простую html страницу, которая будет определять геоположение. Файл расположим в папку [html](infrastructure/docker_source/html/).
 \
-Создадим Dockerfile в папке [docker_source](infrastructure/docker_source/)следующего содержания:
+Создадим простую html страницу, которая будет определять геоположение. Файл расположим в папку [html](infrastructure/docker_source/html/).
+
+\
+Создадим Dockerfile в папке [docker_source](infrastructure/docker_source/ следующего содержания:
 
 ```
 FROM nginx:1.27.0
@@ -218,6 +224,7 @@ nginx                                   1.27.0    dde0cca083bc   4 weeks ago    
 
 </details>
 
+\
 Проверяем работу контейнера из образа:
 ```
 vainoord@vnrd-mypc-2 docker_source $ sudo docker run -d --name=app-qualification-geo -p 80:80 2c07236fa86b
@@ -230,6 +237,7 @@ vainoord@vnrd-mypc-2 docker_source $ sudo docker run -d --name=app-qualification
      style="float: left; margin-right: 10px; margin-top: 10px;" />
 </details>
 
+\
 Образ контейнера будем хранить в yc registry, для этого сначала в [terraform проект](infrastructure/project_configuration/) добавим `registry` ресурс:
 
 <details>
@@ -247,6 +255,7 @@ resource "yandex_container_registry" "yc-reg" {
 
 </details>
 
+\
 Также для использования yc registry необходимо в файл `~/.docker/config.json` добавить следующее содержимое:
 
 ```json
@@ -258,25 +267,26 @@ resource "yandex_container_registry" "yc-reg" {
   }
 ```
 
-Добавим тэг сделанному образу:
+Запишем ID нашего registry в переменную, добавим тэг сделанному образу:
 
 ```bash
+vainoord@vnrd-mypc-2 docker_source $ registry_id=crp1h3ir3dj4rbtunnhs
 vainoord@vnrd-mypc-2 docker_source $ docker tag netology/app-qualification-geo:1.0 \
-cr.yandex/crpoagtsqrvisdaesmgh/app-qualification-geo:1.0
+cr.yandex/$registry_id/app-qualification-geo:1.0
 ```
 
 И наконец загрузим образ в yc registry:
 
 ```bash
 vainoord@vnrd-mypc-2 docker_source $ docker push \
-cr.yandex/crpoagtsqrvisdaesmgh/app-qualification-geo:1.0
-The push refers to repository [cr.yandex/crpoagtsqrvisdaesmgh/app-qualification-geo]
-09a38ea08070: Layer already exists 
-10655d686986: Layer already exists 
-3dd5fd695861: Layer already exists 
-eddb6eb0845b: Layer already exists 
-8162731f1e8d: Layer already exists 
-cddaf363c4d4: Layer already exists 
+cr.yandex/$registry_id/app-qualification-geo:1.0
+The push refers to repository [cr.yandex/crp1h3ir3dj4rbtunnhs/app-qualification-geo]
+09a38ea08070: Pushed 
+10655d686986: Pushed 
+3dd5fd695861: Pushed 
+eddb6eb0845b: Pushed 
+8162731f1e8d: Pushed 
+cddaf363c4d4: Pushed 
 409a3bc90254: Pushed 
 1387079e86ad: Pushed 
 1.0: digest: sha256:bb8dabb300f5993728087e1107c9a3d695d5108286d055fb4f9803207a660482 size: 1985
@@ -289,5 +299,402 @@ cddaf363c4d4: Layer already exists
      style="float: left; margin-right: 10px; margin-top: 10px;" />
 </details>
 
+---
 
-### Установка системы мониторинга kube-prometheus
+### Установка prometheus, grafana, alertmanager, node exporter 
+
+Качаем репозиторий пакета `kube-prometheus`, который включает в себя все перечисленные компоненты:
+
+```bash
+vainoord@vnrd-mypc-2 infrastructure $ git clone git@github.com:prometheus-operator/kube-prometheus.git kube_prometheus 
+```
+
+Перед установкой пакета проверяем версию k8s:
+
+<details>
+<summary> kubectl version </summary>
+
+```bash
+vainoord@vnrd-mypc-2 kube_prometheus $ kubectl version --output=yaml
+clientVersion:
+  buildDate: "2022-11-09T13:36:36Z"
+  compiler: gc
+  gitCommit: 872a965c6c6526caa949f0c6ac028ef7aff3fb78
+  gitTreeState: clean
+  gitVersion: v1.25.4
+  goVersion: go1.19.3
+  major: "1"
+  minor: "25"
+  platform: darwin/amd64
+kustomizeVersion: v4.5.7
+serverVersion:
+  buildDate: "2022-09-21T13:12:04Z"
+  compiler: gc
+  gitCommit: b39bf148cd654599a52e867485c02c4f9d28b312
+  gitTreeState: clean
+  gitVersion: v1.24.6
+  goVersion: go1.18.6
+  major: "1"
+  minor: "24"
+  platform: linux/amd64
+```
+
+</details>
+
+\
+Для нашей версии k8s `1.24.6` подойдет версия пакета `release-0.12`:
+
+```bash
+vainoord@vnrd-mypc-2 kube_prometheus $ cd ..
+vainoord@vnrd-mypc-2 infrastructure $ cd kube_prometheus 
+vainoord@vnrd-mypc-2 kube_prometheus $ git checkout release-0.12
+branch 'release-0.12' set up to track 'origin/release-0.12'.
+Switched to a new branch 'release-0.12'
+```
+
+Далее используем инструкции из раздела `Quiclstart` пакета `kube-prometheus`:
+
+```bash
+kubectl apply --server-side -f manifests/setup
+kubectl wait \
+	--for condition=Established \
+	--all CustomResourceDefinition \
+	--namespace=monitoring
+kubectl apply -f manifests/
+```
+
+\
+Для проверки установленных модулей необходимо сделать `port-forwarding` согласно следующей инструкции:
+
+<details>
+<summary>port forwarding guide</summary>
+
+## Prometheus
+
+```shell
+$ kubectl --namespace monitoring port-forward svc/prometheus-k8s 9090
+```
+
+Then access via [http://localhost:9090](http://localhost:9090)
+
+## Grafana
+
+```shell
+$ kubectl --namespace monitoring port-forward svc/grafana 3000
+```
+
+Then access via [http://localhost:3000](http://localhost:3000) and use the default grafana user:password of `admin:admin`.
+
+## Alert Manager
+
+```shell
+$ kubectl --namespace monitoring port-forward svc/alertmanager-main 9093
+```
+
+Then access via [http://localhost:9093](http://localhost:9093)
+
+</details>
+
+\
+Убедимся, что графана работает:
+
+<details>
+<summary>Grafana screenshots</summary>
+
+<img src="attachments/scr4.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+
+<img src="attachments/scr5.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+</details>
+
+---
+
+### Деплой приложения в k8s
+
+Чтобы в k8s была возможность получить образ из yandex cloud registry необходимо настроить доступ к последнему. Для этого пропишем создание `service account` и его роли `container-registry.images.puller` в файле .tf. Добавим в [registry](infrastructure/project_configuration/registry.tf) манифест следующие строки и выполним `terraform apply`:
+
+<details>
+<summary>service account</summary>
+
+```
+resource "yandex_iam_service_account" "yc-sa" {
+  name        = var.sa_name
+  description = "The name of service account for access to container registry"
+  folder_id   = var.yc_folder_id
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "yc-sa-puller" {
+  folder_id   = var.yc_folder_id
+  role        = "container-registry.images.puller"
+  member      = "serviceAccount:${yandex_iam_service_account.yc-sa.id}"
+}
+
+resource "yandex_resourcemanager_folder_iam_member" "yc-sa-pusher" {
+  folder_id   = var.yc_folder_id
+  role        = "container-registry.images.pusher"
+  member      = "serviceAccount:${yandex_iam_service_account.yc-sa.id}"
+}
+```
+
+</details>
+
+\
+Создадим `authorized key` для созданного аккаунта:
+
+```bash
+yc iam key create --service-account-name <service_account_name> -o key.json
+```
+
+Запускаем команду аутентификации `docker`:
+
+```bash
+cat key.json | docker login \                  
+--username json_key \
+--password-stdin \
+cr.yandex
+```
+
+Должны получить сообщение `Login succeeded`, а файл `$HOME/.docker/config.json` должен иметь следующую запись:
+
+```bash
+{
+  "auths": {
+    "cr.yandex": {
+      "auth": "anNvbl9rZXk
+      ...
+      tXG4iCn0="
+    }
+  }
+}
+```
+
+Создадим `namespace` для нашего проекта и добавим его в `k8s`:
+
+```yml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ns-qualification-task
+```
+
+Добавляем [secret](infrastructure/k8s_manifests/secret-registry.yaml) в кластер:
+
+```bash
+apiVersion: v1
+kind: Secret
+metadata:
+  name: regcred
+  namespace: ns-qualification-task
+data:
+  .dockerconfigjson: ewo.....Cgl9Cn0=
+type: kubernetes.io/dockerconfigjson
+```
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl get secret -n ns-qualification-task                              
+NAME      TYPE                             DATA   AGE
+regcred   kubernetes.io/dockerconfigjson   1      10h
+```
+
+\
+Значение `dockerconfigjson` это закодированное содержимое файла `~/.docker/config.json` командой `cat ~/.docker/config.json | base64`.
+
+\
+Теперь создадим манифест нашего nginx приложения для k8s, поместим его в папку [k8s_manifests](infrastructure/k8s_manifests/):
+
+<details>
+<summary>application manifest</summary>
+
+```yml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-k8s-qualification-task
+  namespace: ns-qualification-task
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-k8s-qualification-task
+  template:
+    metadata:
+      labels:
+        app: app-k8s-qualification-task
+    spec:
+      containers:
+      - name: geo-app
+        image: cr.yandex/crp1h3ir3dj4rbtunnhs/app-qualification-geo:1.0
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc-qualification-task 
+  namespace: ns-qualification-task 
+spec:
+  selector:
+    app: app-k8s-qualification-task
+  ports:
+  - name: web-http
+    port: 8081
+    targetPort: 80
+```
+
+</details>
+
+\
+Запустим манифест, убедимся, что поды и сервис поднялись:
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl apply -f app-nginx.yaml
+namespace/ns-qualification-task created
+deployment.apps/app-k8s-qualification-task created
+service/svc-qualification-task created
+```
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl get pods -n ns-qualification-task                                
+NAME                                          READY   STATUS    RESTARTS        AGE
+app-k8s-qualification-task-6967f8b856-c655t   1/1     Running   1 (5m43s ago)   10h
+app-k8s-qualification-task-6967f8b856-g9gr9   1/1     Running   1 (5m38s ago)   10h
+
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl get services -n ns-qualification-task 
+NAME                     TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+svc-qualification-task   ClusterIP   10.233.41.186   <none>        8081/TCP   43h
+```
+
+Остается сделать проброс порта на сервис и проверить доступность приложения:
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl -n ns-qualification-task port-forward svc/svc-qualification-task 8081
+Forwarding from 127.0.0.1:8081 -> 80
+Forwarding from [::1]:8081 -> 80
+```
+
+<details>
+<summary>application check</summary>
+<img src="attachments/scr6.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+</details>
+
+---
+
+### Установка и настройка CI/CD
+
+Для CI/CD части используем GitHub Actions.
+\
+Заведем отдельный github репозиторий для нашего приложения:
+https://github.com/Vainoord/web-app-example/tree/main
+
+В него поместим [папку html и Dockerfile](infrastructure/docker_source/) а также k8s манифесты. 
+
+\
+После в репозитории заведем secrets:
+- REGISTRY_ID - id нашего yc container registry;
+- REGISTRY_TOKEN - содержимое json-файла `~/.docker/config.json`, сделанного в [предыдущей](#деплой-приложения-в-k8s) части;
+- K8S_CONFIG - зашифрованный файл `~/.kube/config` в конце [создания kubernetes кластера](#создание-kubernetes-кластера). Зашифровать можно командой `cat ~/.kube/config | base64`;
+- REGISTRY_CONFIG_ENCODED - зашифрованное содержимое json-файла `~/.docker/config.json`;
+
+<details>
+<summary>repository secrets</summary>
+<img src="attachments/scr7.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+</details>
+
+\
+Настроим pipeline. Для github actions необходим yaml файл в папке [.github/workflows](https://github.com/Vainoord/web-app-example/blob/main/.github/workflows/docker-image-deploying.yaml) нашего репозитория.
+
+\
+Перед запуском pipeline удалим deployment из k8s:
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl get pods,secrets,services -n ns-qualification-task
+No resources found in ns-qualification-task namespace.
+```
+
+Запускаем pipeline:
+
+<details>
+<summary>pipeline status</summary>
+<img src="attachments/scr8.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+</details>
+
+\
+В yc registry появился новый образ:
+
+<details>
+<summary>YC registry updated</summary>
+<img src="attachments/scr9.png"
+     alt="Dashboard"
+     style="float: left; margin-right: 10px; margin-top: 10px;" />
+</details>
+
+\
+Проверяем кластер на наличие подов:
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl get pods,secrets,services -n ns-qualification-task
+NAME                                              READY   STATUS    RESTARTS   AGE
+pod/app-k8s-qualification-task-6967f8b856-khhjg   1/1     Running   0          71s
+pod/app-k8s-qualification-task-6967f8b856-zg6gt   1/1     Running   0          71s
+
+NAME             TYPE                             DATA   AGE
+secret/regcred   kubernetes.io/dockerconfigjson   1      73s
+
+NAME                             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)    AGE
+service/svc-qualification-task   ClusterIP   10.233.33.239   <none>        8081/TCP   70s
+```
+
+Проверяем приложение:
+
+```bash
+vainoord@vnrd-mypc-2 k8s_manifests $ kubectl -n ns-qualification-task port-forward svc/svc-qualification-task 8081
+Forwarding from 127.0.0.1:8081 -> 80
+Forwarding from [::1]:8081 -> 80
+Handling connection for 8081
+Handling connection for 8081
+Handling connection for 8081
+```
+
+```bash
+vainoord@vnrd-mypc-2 qualification $ curl http://localhost:8081
+<!DOCTYPE html>
+<html>
+<body>
+<h1>HTML Geolocation</h1>
+<p>Click the button to get your coordinates.</p>
+
+<button onclick="getLocation()">Try It</button>
+
+<p id="demo"></p>
+
+<script>
+const x = document.getElementById("demo");
+
+function getLocation() {
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(showPosition);
+  } else { 
+    x.innerHTML = "Geolocation is not supported by this browser.";
+  }
+}
+
+function showPosition(position) {
+  x.innerHTML = "Latitude: " + position.coords.latitude + 
+  "<br>Longitude: " + position.coords.longitude;
+}
+</script>
+
+</body>
+</html> 
+```
